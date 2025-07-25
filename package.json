@@ -1,0 +1,33 @@
+{
+  "name": "image-describer",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "describe": "./cli.js"
+  },
+  "scripts": {
+    "start": "node cli.js"
+  },
+  "pkg": {
+    "scripts": [
+      "cli.js",
+      "gptService.js",
+      "bootstrap.js"
+    ],
+    "targets": [
+      "node18-macos",
+      "node18-linux",
+      "node18-win"
+    ],
+    "outputPath": "dist"
+  },
+  "description": "A CLI tool to generate accessible image descriptions using OpenAI's GPT-4o model.",
+  "author": "Gustavo Leitão",
+  "license": "MIT",
+  "dependencies": {
+    "cli-progress": "^3.12.0",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^17.2.1",
+    "openai": "^5.10.2"
+  }
+}
