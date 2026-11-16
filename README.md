@@ -2,6 +2,16 @@
 
 image-describer é uma ferramenta de linha de comando (CLI) que utiliza a API do ChatGPT com o modelo gpt-4o para gerar descrições acessíveis e detalhadas de imagens, especialmente para uso em atributos alt e tecnologias assistivas.
 
+## Formatos suportados
+
+| Formato | Suporte |
+|---------|---------|
+| PNG, JPEG, WEBP | Enviados diretamente à API |
+| SVG | Convertido localmente para PNG (mín. 1024 px de largura, máx. 2048 px no maior lado, fundo branco) |
+| GIF (inclusive animado) | Convertido localmente para PNG a partir do primeiro quadro |
+
+A API de visão da OpenAI não aceita SVG nem GIF animado, então essas imagens são baixadas e rasterizadas com [`@resvg/resvg-wasm`](https://github.com/yisibl/resvg-js) (WASM, sem dependências nativas — funciona também nos binários gerados pelo `yarn build`). A detecção usa a extensão da URL; para URLs sem extensão, se a API recusar a imagem, o conteúdo é inspecionado e convertido automaticamente. Textos dentro de SVGs são renderizados com fontes comuns do sistema (Arial, DejaVu, Liberation etc.).
+
 ## Requisitos
 
 - Node.js v18+
