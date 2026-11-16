@@ -1,6 +1,10 @@
 .env
 node_modules
 dist
+build
 data
 *.csv
 *.zip
+.DS_Store
+scripts
+tmp

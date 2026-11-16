@@ -23,10 +23,23 @@ function parseArgs() {
     } else if (args[i] === "--output" && args[i + 1]) {
       options.output = args[i + 1];
       i++;
+    } else if (args[i] === "--resume") {
+      options.resume = true;
     }
   }
 
   return options;
+}
+
+function isFatalApiError(err) {
+  const status = err?.status;
+  const code = err?.code;
+
+  if (status === 401) return true; // chave de API inválida ou revogada
+  if (status === 403) return true; // sem permissão para o modelo/recurso
+  if (status === 429 && code === "insufficient_quota") return true; // créditos/orçamento esgotados
+
+  return false;
 }
 
 function gerarNomeCSV() {
@@ -36,6 +49,166 @@ function gerarNomeCSV() {
   return `output-${data}-${hora}.csv`;
 }
 
+// Parser simples de uma linha CSV (suporta campos entre aspas com "" como escape)
+function parseCsvLine(line) {
+  const fields = [];
+  let i = 0;
+  const n = line.length;
+
+  while (i <= n) {
+    let field = "";
+    if (line[i] === '"') {
+      i++;
+      while (i < n) {
+        if (line[i] === '"') {
+          if (line[i + 1] === '"') {
+            field += '"';
+            i += 2;
+          } else {
+            i++;
+            break;
+          }
+        } else {
+          field += line[i];
+          i++;
+        }
+      }
+    } else {
+      while (i < n && line[i] !== ",") {
+        field += line[i];
+        i++;
+      }
+    }
+    fields.push(field);
+    if (line[i] === ",") {
+      i++;
+    } else {
+      break;
+    }
+  }
+
+  return fields;
+}
+
+// Lê um CSV de saída já existente e retorna os registros já concluídos com
+// sucesso (linhas "ERRO:" são descartadas para serem refeitas no resume)
+function getSuccessfulRecords(outputPath) {
+  const records = [];
+  if (!fs.existsSync(outputPath)) return records;
+
+  const lines = fs.readFileSync(outputPath, "utf-8")
+    .split(/\r?\n/)
+    .filter((l) => l.length > 0);
+
+  for (const line of lines.slice(1)) { // pula o cabeçalho
+    const [url, description = ""] = parseCsvLine(line);
+    if (url && !description.startsWith("ERRO:")) {
+      records.push({ url, description });
+    }
+  }
+
+  return records;
+}
+
+async function processTxtFileIncremental(filePath, outputPath, resume = false) {
+  const allUrls = fs.readFileSync(filePath, "utf-8")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"));
+
+  const outputExists = fs.existsSync(outputPath);
+  const resuming = resume && outputExists;
+
+  const successfulRecords = resuming ? getSuccessfulRecords(outputPath) : [];
+  const alreadyDone = new Set(successfulRecords.map((r) => r.url));
+  const lines = allUrls.filter((url) => !alreadyDone.has(url));
+
+  if (resume) {
+    if (!outputExists) {
+      console.log(`↪ --resume: ${outputPath} não existe ainda, processando tudo desde o início.`);
+    } else if (alreadyDone.size > 0) {
+      console.log(`↪ Retomando: ${alreadyDone.size} imagens já concluídas serão puladas. Restam ${lines.length}.`);
+    } else {
+      console.log(`↪ Retomando: nenhuma imagem concluída encontrada em ${outputPath}. Processando ${lines.length} imagens.`);
+    }
+  }
+
+  const bar = new cliProgress.SingleBar(
+    {
+      format: "Progresso [{bar}] {percentage}% | {value}/{total} imagens | Última: {lastProcessed}",
+      barCompleteChar: '█',
+      barIncompleteChar: '░',
+      hideCursor: true
+    },
+    cliProgress.Presets.shades_classic
+  );
+
+  bar.start(lines.length, 0, { lastProcessed: 'Iniciando...' });
+
+  // Criar o CSV writer para escrita incremental. No resume, o arquivo é
+  // reescrito só com os registros de sucesso (descartando ERROs antigos que
+  // serão refeitos), e as próximas escritas passam a ser em modo append.
+  const csvWriter = createObjectCsvWriter({
+    path: outputPath,
+    header: [
+      { id: "url", title: "URL" },
+      { id: "description", title: "Description" },
+    ],
+    append: false,
+  });
+
+  await csvWriter.writeRecords(successfulRecords);
+
+  let processedCount = 0;
+  let errorCount = 0;
+  let abortedByFatalError = null;
+
+  for (const url of lines) {
+    try {
+      const description = await generateImageDescription(url);
+
+      // Escrever cada linha individualmente no CSV
+      await csvWriter.writeRecords([{ url, description }]);
+
+      processedCount++;
+      const shortUrl = url.length > 40 ? url.substring(0, 40) + '...' : url;
+      bar.increment(1, { lastProcessed: `✓ ${shortUrl}` });
+    } catch (err) {
+      const errorDescription = "ERRO: " + err.message;
+
+      // Escrever o erro no CSV também
+      await csvWriter.writeRecords([{ url, description: errorDescription }]);
+
+      errorCount++;
+      const shortUrl = url.length > 40 ? url.substring(0, 40) + '...' : url;
+      bar.increment(1, { lastProcessed: `✗ ${shortUrl}` });
+
+      if (isFatalApiError(err)) {
+        abortedByFatalError = err;
+        break;
+      }
+    }
+  }
+
+  bar.stop();
+
+  if (abortedByFatalError) {
+    const skipped = lines.length - processedCount - errorCount;
+    console.error(`\n❌ Processamento interrompido: ${abortedByFatalError.message}`);
+    console.log(`✓ Imagens processadas com sucesso: ${processedCount}`);
+    console.log(`✗ Erros: ${errorCount}`);
+    console.log(`⏭️  Imagens não processadas (puladas): ${skipped}`);
+    console.log(`📁 Arquivo CSV salvo em: ${outputPath}`);
+    process.exit(1);
+  }
+
+  console.log(`\nProcessamento concluído!`);
+  console.log(`✓ Imagens processadas com sucesso: ${processedCount}`);
+  console.log(`✗ Erros: ${errorCount}`);
+  console.log(`📁 Arquivo CSV salvo em: ${outputPath}`);
+}
+
+// Função original mantida para compatibilidade
 async function processTxtFile(filePath) {
   const lines = fs.readFileSync(filePath, "utf-8")
     .split("\n")
@@ -82,6 +255,7 @@ async function main() {
 
   if (!options.file && !options.url) {
     console.error("Uso: describe --file arquivo.txt  OU  describe --url https://imagem.png");
+    console.error("     describe --file arquivo.txt --output saida.csv --resume");
     process.exit(1);
   }
 
@@ -92,9 +266,16 @@ async function main() {
       process.exit(1);
     }
 
-    const data = await processTxtFile(inputPath);
+    if (options.resume && !options.output) {
+      console.error("A opção --resume requer --output apontando para o CSV a continuar.");
+      console.error("Ex: describe --file imagens.txt --output output.csv --resume");
+      process.exit(1);
+    }
+
     const outputFile = options.output || gerarNomeCSV();
-    await writeCsv(outputFile, data);
+
+    // Usar o novo método incremental por padrão
+    await processTxtFileIncremental(inputPath, outputFile, options.resume);
   }
 
   if (options.url) {

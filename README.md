@@ -73,6 +73,16 @@ output-YYYY-MM-DD-HHmm.csv
 describe --file imagens.txt --output resultado.csv
 ```
 
+### Retomar um processamento interrompido
+
+Se o processamento parar antes de terminar (por exemplo, créditos da OpenAI esgotados, chave inválida, ou qualquer outra falha), use `--resume` apontando para o mesmo `--output` para continuar de onde parou, sem refazer as imagens já concluídas com sucesso:
+
+```bash
+describe --file imagens.txt --output resultado.csv --resume
+```
+
+Imagens que já têm uma descrição no CSV são puladas; imagens ausentes ou marcadas com `ERRO:` são (re)processadas.
+
 ## Estrutura do CSV gerado
 
 | URL                          | Description               |
