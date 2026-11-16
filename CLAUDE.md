@@ -12,9 +12,9 @@ CLI (`describe`) que usa a API da OpenAI (modelo `gpt-4o`) para gerar descriçõ
 yarn install                              # instalar dependências
 yarn link                                 # registrar o comando `describe` globalmente
 node cli.js --url https://.../img.png     # descrever uma única imagem
-node cli.js --file imagens.txt            # processar um arquivo de URLs (gera output-YYYY-MM-DD-HHmm.csv)
-node cli.js --file imagens.txt --output resultado.csv             # customizar nome do CSV de saída
-node cli.js --file imagens.txt --output resultado.csv --resume    # retomar um processamento interrompido
+node cli.js --file data/entradas/imagens.txt            # processar um arquivo de URLs (gera output-YYYY-MM-DD-HHmm.csv no diretório atual)
+node cli.js --file data/entradas/imagens.txt --output data/saidas/resultado.csv             # customizar nome do CSV de saída
+node cli.js --file data/entradas/imagens.txt --output data/saidas/resultado.csv --resume    # retomar um processamento interrompido
 yarn build                                # gera binários standalone (dist/) via esbuild + pkg
 ```
 
@@ -48,4 +48,15 @@ O campo `pkg.scripts` foi removido do `package.json` porque deixou de ser necess
 
 ## Dados e arquivos gerados
 
-O `.gitignore` exclui `.env`, `node_modules`, `dist`, `data/`, `*.csv`, `*.zip`, `scripts`, `tmp`. Arquivos `imagens*.txt`, `arquivos/`, `data/`, e os `output-*.csv`/`resultado-*.csv` na raiz são artefatos de execução/dados de entrada específicos de lotes processados localmente — não fazem parte do código-fonte da ferramenta.
+Os dados de execução ficam em `data/` (inteiro no `.gitignore`, nunca commitado):
+
+```
+data/
+├── entradas/              # listas de URLs (.txt) a processar, ex.: imagens-<tema>.txt
+│   └── processadas/       # listas já processadas (arquivadas)
+├── saidas/                # CSVs gerados (output-*.csv, resultado-*.csv)
+├── arquivos/, <Disciplina>/  # imagens locais de origem dos lotes
+└── informacoes-aulas.csv  # dados de referência das aulas
+```
+
+Convenção ao rodar lotes: `node cli.js --file data/entradas/<lista>.txt --output data/saidas/<resultado>.csv`. O CLI não força esses caminhos — sem `--output`, o CSV é gerado no diretório atual. O `.gitignore` também exclui `.env`, `node_modules`, `dist`, `build`, `*.csv`, `*.zip`, `scripts`, `tmp`.

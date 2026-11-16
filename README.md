@@ -55,10 +55,12 @@ https://site.com/img1.png
 https://site.com/img2.jpg
 ```
 
+Por organização, guarde as listas de URLs em `data/entradas/` e os CSVs gerados em `data/saidas/` (a pasta `data/` fica fora do Git). A pasta do `--output` é criada automaticamente se não existir.
+
 Execute:
 
 ```bash
-describe --file imagens.txt
+describe --file data/entradas/imagens.txt
 ```
 
 Por padrão, isso gerará um arquivo CSV chamado:
@@ -70,7 +72,7 @@ output-YYYY-MM-DD-HHmm.csv
 ### Personalizar o nome do CSV:
 
 ```bash
-describe --file imagens.txt --output resultado.csv
+describe --file data/entradas/imagens.txt --output data/saidas/resultado.csv
 ```
 
 ### Retomar um processamento interrompido
@@ -78,7 +80,7 @@ describe --file imagens.txt --output resultado.csv
 Se o processamento parar antes de terminar (por exemplo, créditos da OpenAI esgotados, chave inválida, ou qualquer outra falha), use `--resume` apontando para o mesmo `--output` para continuar de onde parou, sem refazer as imagens já concluídas com sucesso:
 
 ```bash
-describe --file imagens.txt --output resultado.csv --resume
+describe --file data/entradas/imagens.txt --output data/saidas/resultado.csv --resume
 ```
 
 Imagens que já têm uma descrição no CSV são puladas; imagens ausentes ou marcadas com `ERRO:` são (re)processadas.

@@ -116,6 +116,9 @@ async function processTxtFileIncremental(filePath, outputPath, resume = false) {
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith("#"));
 
+  // Permite --output em pastas ainda inexistentes (ex.: data/saidas/ num clone novo).
+  fs.mkdirSync(path.dirname(path.resolve(outputPath)), { recursive: true });
+
   const outputExists = fs.existsSync(outputPath);
   const resuming = resume && outputExists;
 
